@@ -1,16 +1,17 @@
-
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Numerics;
+using System.Text.Json;
 using System.Threading.Tasks;
+using gamelogic;
 using Microsoft.AspNetCore.SignalR;
 
 namespace BattleshipBackend.Hubs;
 
 public class BattleshipHub : Hub
 {
-
     static Dictionary<string, Player> _users = new();
     static Dictionary<string, GameRoom> _games = new();
 
@@ -22,45 +23,61 @@ public class BattleshipHub : Hub
     public bool Register(string displayName)
     {
         Debug.WriteLine(Context.ConnectionId + ": Requested the username '" + displayName + "'");
-        
+
         //Checks if the username fulfills all rules
-        bool AllowedUserName()
-        {
-            if (displayName == null || displayName.Length < 1)
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        bool UsernameExists()
-        {
-            return _users.Any(user => user.Key.Equals(displayName));
-        }
-
+        bool allowedUserName = !string.IsNullOrEmpty(displayName);
+        bool usernameExists = _users.Any(user => user.Key.Equals(displayName));
+        
         //if username doesnt exists generate a new one based on it
-        if (!UsernameExists() && AllowedUserName())
+        if (!usernameExists && allowedUserName)
         {
-            var player = new Player{
+            var player = new Player
+            {
                 DisplayName = displayName,
                 ConnectionId = Context.ConnectionId
-            };;
-            _users.Add(Context.ConnectionId, player);;
+            };
+
+            _users.Add(Context.ConnectionId, player);
+
             return true;
         }
 
         return false;
     }
 
-    public bool Shoot(int[,] shotCoordinates)
+    public void PlaceShips(List<Ship> ships)
     {
-        throw new NotImplementedException();
+        var player = _users[Context.ConnectionId];
+        var grid = new GameGrid() {Ships = ships};
+        player.GameGrid = grid;
     }
 
-    public bool YouSunkMyBattleShip()
+    public async Task<bool> Shoot(Vector2 coordinate)
     {
-        throw new NotImplementedException();
+        var player = _users[Context.ConnectionId];
+        var game = player.CurrentGame;
+        var opponent = game.PlayerOne.Equals(player) ? game.PlayerOne : game.PlayerTwo;
+
+        var opponentConnectionId = opponent.ConnectionId;
+        var opponentClient = Clients.Client(opponentConnectionId);
+        // await client.SendAsync("ReceiveShot", coordinate.X, coordinate.Y);
+
+        var isHit = opponent.GameGrid.RecieveHit(coordinate);
+        if (isHit)
+        {
+            var ship = opponent.GameGrid.Ships.FirstOrDefault(ship => ship.IsSunk());
+            if (ship is not null)
+            {
+                await SendSunkShip(ship, opponentClient);
+            }
+        }
+        return isHit;
+    }
+
+    public async Task SendSunkShip(Ship ship, IClientProxy opponentClient)
+    {
+        await opponentClient.SendAsync("OpponentShipSunk",ship);
+
     }
 
     /// <summary>
@@ -71,12 +88,13 @@ public class BattleshipHub : Hub
     public bool CreateGameRoom(string roomName)
     {
         if (_games.Any(game => game.Key.Equals(roomName))) return false;
-        GameRoom? gameRoom = new GameRoom
+        var playerOne = _users[Context.ConnectionId];
+        var gameRoom = new GameRoom
         {
             GameID = roomName,
-            PlayerOne = _users[Context.ConnectionId],
+            PlayerOne = playerOne,
         };
-        
+        playerOne.CurrentGame = gameRoom;
         _games.Add(roomName, gameRoom);
 
         Debug.WriteLine(Context.ConnectionId + ": Created a room with the name '" + roomName + "'");
@@ -86,14 +104,15 @@ public class BattleshipHub : Hub
 
     public bool JoinGameRoom(string roomName)
     {
-        
         if (_games.TryGetValue(roomName, out var gameRoom) && NotFull())
         {
             Player playerTwo = _users[Context.ConnectionId];
             gameRoom.PlayerTwo = playerTwo;
+            playerTwo.CurrentGame = gameRoom;
             Debug.WriteLine(Context.ConnectionId + ": Joined the room with the name '" + roomName + "'");
             return true;
         }
+
         return false;
 
 
@@ -102,75 +121,60 @@ public class BattleshipHub : Hub
             return gameRoom.PlayerTwo == null;
         }
     }
-    
+
     public bool LeaveGameRoom()
     {
-        var currentGameGameId = _users[Context.ConnectionId]?.CurrentGame?.GameID;
-        if (currentGameGameId != null && _games.TryGetValue(currentGameGameId, out var gameRoom))
-        {
-            //If host leaves, delete the gameroom
-            if(Context.ConnectionId.Equals(gameRoom.PlayerOne.ConnectionId))
-            {
-                if (gameRoom.GameID != null)
-                {
-                    _games.Remove(gameRoom.GameID);
-                    Debug.WriteLine(Context.ConnectionId + ": Left the room with the name '" + gameRoom.GameID + "'");
-                    Debug.WriteLine("gameroom: " + gameRoom.GameID + " closed");
-                }
+        if (!_users.TryGetValue(Context.ConnectionId, out var currentGame)) return false;
 
-                return true;
-            }
-            //If player leaves, just remove them from the room
-            if (gameRoom.PlayerTwo != null && Context.ConnectionId.Equals(gameRoom.PlayerTwo?.ConnectionId))
+        var gameId = currentGame?.ConnectionId;
+        if (gameId == null || !_games.TryGetValue(gameId, out var gameRoom)) return false;
+        //If host leaves, delete the gameroom
+        if (Context.ConnectionId.Equals(gameRoom.PlayerOne.ConnectionId))
+        {
+            if (gameRoom.GameID != null)
             {
-                gameRoom.PlayerTwo = null;
+                _games.Remove(gameRoom.GameID);
                 Debug.WriteLine(Context.ConnectionId + ": Left the room with the name '" + gameRoom.GameID + "'");
-                return true;
+                Debug.WriteLine("gameroom: " + gameRoom.GameID + " closed");
             }
+
+            return true;
         }
+
+        //If player leaves, just remove them from the room
+        if (gameRoom.PlayerTwo != null && Context.ConnectionId.Equals(gameRoom.PlayerTwo?.ConnectionId))
+        {
+            gameRoom.PlayerTwo = null;
+            Debug.WriteLine(Context.ConnectionId + ": Left the room with the name '" + gameRoom.GameID + "'");
+            return true;
+        }
+
         return false;
     }
-    
+
 
     public GameRoom[] GetGameRooms()
     {
-
-
         return _games.Values.ToArray();
     }
 
-    
 
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         Debug.WriteLine(Context.ConnectionId + ": Disconnected");
-        
+
         _users.Remove(Context.ConnectionId);
 
 
         LeaveGameRoom();
         return base.OnDisconnectedAsync(exception);
     }
-    
+
 
     public override Task OnConnectedAsync()
     {
         Debug.WriteLine("User has connected with ID: " + Context.ConnectionId);
-        
+
         return base.OnConnectedAsync();
     }
-}
-
-public class GameRoom
-{
-    public string GameID { get; set; } = "";
-    public Player PlayerOne { get; set; }
-    public Player PlayerTwo { get; set; }
-}
-
-public class Player
-{
-    public string ConnectionId { get; set; }
-    public string DisplayName { get; set; }
-    public GameRoom CurrentGame { get; set; }
 }

@@ -2,12 +2,15 @@ using System.Text.Json.Serialization;
 using BattleshipBackend.Hubs;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors();
-builder.Services.AddSignalR().AddJsonProtocol(options => options.PayloadSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve);
-
+builder.Services.AddSignalR().AddNewtonsoftJsonProtocol(options =>
+{
+    options.PayloadSerializerSettings.PreserveReferencesHandling = PreserveReferencesHandling.Objects;
+});
 var app = builder.Build();
 
 app.UseCors(policyBuilder =>
