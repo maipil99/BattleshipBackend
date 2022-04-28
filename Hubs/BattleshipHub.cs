@@ -25,66 +25,59 @@ public class BattleshipHub : Hub
         Debug.WriteLine(Context.ConnectionId + ": Requested the username '" + displayName + "'");
 
         //Checks if the username fulfills all rules
-        bool AllowedUserName()
-        {
-            return !string.IsNullOrEmpty(displayName);
-        }
-
-        bool UsernameExists()
-        {
-            return _users.Any(user => user.Key.Equals(displayName));
-        }
-
+        bool AllowedUserName = !string.IsNullOrEmpty(displayName);
+        bool UsernameExists = _users.Any(user => user.Key.Equals(displayName));
+        
         //if username doesnt exists generate a new one based on it
-        if (!UsernameExists() && AllowedUserName())
+        if (!UsernameExists && AllowedUserName)
         {
             var player = new Player
             {
                 DisplayName = displayName,
                 ConnectionId = Context.ConnectionId
             };
-            ;
+
             _users.Add(Context.ConnectionId, player);
-            ;
+
             return true;
         }
 
         return false;
     }
 
-    public async Task PlaceShips(List<Ship> ships)
+    public void PlaceShips(List<Ship> ships)
     {
         var player = _users[Context.ConnectionId];
         var grid = new GameGrid() {Ships = ships};
         player.GameGrid = grid;
-
-        ships.ForEach(ship =>
-        {
-            foreach (var shipTile in ship.Tiles)
-            {
-                Console.Out.WriteLine("shipTile = {0}", shipTile.X);
-            }
-        });
     }
 
     public async Task<bool> Shoot(Vector2 coordinate)
     {
         var player = _users[Context.ConnectionId];
         var game = player.CurrentGame;
-        var opponent = game.PlayerOne.Equals(player) ? game.PlayerTwo : game.PlayerOne;
+        var opponent = game.PlayerOne.Equals(player) ? game.PlayerOne : game.PlayerTwo;
 
-        var connectionId = opponent.ConnectionId;
-        var client = Clients.Client(connectionId);
+        var opponentConnectionId = opponent.ConnectionId;
+        var opponentClient = Clients.Client(opponentConnectionId);
         // await client.SendAsync("ReceiveShot", coordinate.X, coordinate.Y);
 
         var isHit = opponent.GameGrid.RecieveHit(coordinate);
-
+        if (isHit)
+        {
+            var ship = opponent.GameGrid.Ships.FirstOrDefault(ship => ship.IsSunk());
+            if (ship is not null)
+            {
+                await SendSunkShip(ship, opponentClient);
+            }
+        }
         return isHit;
     }
 
-    public bool YouSunkMyBattleShip()
+    public async Task SendSunkShip(Ship ship, IClientProxy opponentClient)
     {
-        throw new NotImplementedException();
+        await opponentClient.SendAsync("OpponentShipSunk",ship);
+
     }
 
     /// <summary>
