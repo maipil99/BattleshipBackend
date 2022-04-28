@@ -1,6 +1,0 @@
-- name: New Push
-    uses: rjstone/discord-webhook-notify@v1
-    with:
-        severity: info
-        details: New push
-        webhookUrl: ${{ secrets.DISCORD_WEBHOOK_URL }}
