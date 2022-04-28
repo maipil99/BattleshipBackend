@@ -6,8 +6,8 @@ using Microsoft.Extensions.DependencyInjection;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddCors();
-builder.Services.AddSignalR().AddJsonProtocol(options => options.PayloadSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve);
-
+// builder.Services.AddSignalR().AddJsonProtocol(options => options.PayloadSerializerOptions.ReferenceHandler = ReferenceHandler.Preserve);
+builder.Services.AddSignalR().AddNewtonsoftJsonProtocol();
 var app = builder.Build();
 
 app.UseCors(policyBuilder =>
