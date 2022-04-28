@@ -1,7 +1,4 @@
-using System.Text.Json.Serialization;
 using BattleshipBackend.Hubs;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 
 var builder = WebApplication.CreateBuilder(args);

@@ -1,10 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Numerics;
-using System.Text.Json;
-using System.Threading.Tasks;
 using gamelogic;
 using Microsoft.AspNetCore.SignalR;
 
@@ -12,8 +7,8 @@ namespace BattleshipBackend.Hubs;
 
 public class BattleshipHub : Hub
 {
-    static Dictionary<string, Player> _users = new();
-    static Dictionary<string, GameRoom> _games = new();
+    private static readonly Dictionary<string, Player> _users = new();
+    private static readonly Dictionary<string, GameRoom> _games = new();
 
     /// <summary> 
     /// Checks against the user dictionary to see if the username is already in use.
@@ -27,7 +22,7 @@ public class BattleshipHub : Hub
         //Checks if the username fulfills all rules
         bool allowedUserName = !string.IsNullOrEmpty(displayName);
         bool usernameExists = _users.Any(user => user.Key.Equals(displayName));
-        
+
         //if username doesnt exists generate a new one based on it
         if (!usernameExists && allowedUserName)
         {
@@ -48,36 +43,48 @@ public class BattleshipHub : Hub
     public void PlaceShips(List<Ship> ships)
     {
         var player = _users[Context.ConnectionId];
-        var grid = new GameGrid() {Ships = ships};
+        var grid = new GameGrid {Ships = ships};
         player.GameGrid = grid;
     }
 
-    public async Task<bool> Shoot(Vector2 coordinate)
+    public async Task<bool> Shoot(Vector2 shotCoordinate)
     {
         var player = _users[Context.ConnectionId];
+        var playerClient = Clients.Client(player.ConnectionId);
         var game = player.CurrentGame;
         var opponent = game.PlayerOne.Equals(player) ? game.PlayerOne : game.PlayerTwo;
 
         var opponentConnectionId = opponent.ConnectionId;
         var opponentClient = Clients.Client(opponentConnectionId);
-        // await client.SendAsync("ReceiveShot", coordinate.X, coordinate.Y);
 
-        var isHit = opponent.GameGrid.RecieveHit(coordinate);
+        var isHit = opponent.GameGrid.ReceiveHit(shotCoordinate);
         if (isHit)
         {
-            var ship = opponent.GameGrid.Ships.FirstOrDefault(ship => ship.IsSunk());
-            if (ship is not null)
+            //get ship that just got hit
+            var shipHit =
+                opponent.GameGrid.Ships.FirstOrDefault(ship => ship.Tiles.Any(tile => tile.Equals(shotCoordinate)));
+
+            //check if ship is sunk
+            var shipIsSunk = shipHit?.IsSunk() ?? false;
+
+            Debug.WriteLine(player.DisplayName + $": Hit a ship at {shotCoordinate.X}, {shotCoordinate.Y}");
+            
+            //if player's ship is sunk send a message to the player with the opponent's ship that was sunk
+            if (shipIsSunk)
             {
-                await SendSunkShip(ship, opponentClient);
+                Debug.WriteLine(player.DisplayName + $": Sunk a ship at {shotCoordinate.X}, {shotCoordinate.Y}");
+                await SendSunkShip(shipHit, playerClient);
             }
         }
+        //sends the shot to the opponent
+        await opponentClient.SendAsync("ReceiveShot", shotCoordinate);
+
         return isHit;
     }
 
-    public async Task SendSunkShip(Ship ship, IClientProxy opponentClient)
+    private async Task SendSunkShip(Ship ship, IClientProxy client)
     {
-        await opponentClient.SendAsync("OpponentShipSunk",ship);
-
+        await client.SendAsync("OpponentShipSunk", ship);
     }
 
     /// <summary>
@@ -104,6 +111,7 @@ public class BattleshipHub : Hub
 
     public bool JoinGameRoom(string roomName)
     {
+        
         if (_games.TryGetValue(roomName, out var gameRoom) && NotFull())
         {
             Player playerTwo = _users[Context.ConnectionId];
@@ -114,19 +122,15 @@ public class BattleshipHub : Hub
         }
 
         return false;
-
-
-        bool NotFull()
-        {
-            return gameRoom.PlayerTwo == null;
-        }
+        
+        bool NotFull() => gameRoom.PlayerTwo == null;
     }
 
     public bool LeaveGameRoom()
     {
-        if (!_users.TryGetValue(Context.ConnectionId, out var currentGame)) return false;
+        if (!_users.TryGetValue(Context.ConnectionId, out var player)) return false;
 
-        var gameId = currentGame?.ConnectionId;
+        var gameId = player?.ConnectionId;
         if (gameId == null || !_games.TryGetValue(gameId, out var gameRoom)) return false;
         //If host leaves, delete the gameroom
         if (Context.ConnectionId.Equals(gameRoom.PlayerOne.ConnectionId))
