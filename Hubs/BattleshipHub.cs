@@ -25,11 +25,11 @@ public class BattleshipHub : Hub
         Debug.WriteLine(Context.ConnectionId + ": Requested the username '" + displayName + "'");
 
         //Checks if the username fulfills all rules
-        bool AllowedUserName = !string.IsNullOrEmpty(displayName);
-        bool UsernameExists = _users.Any(user => user.Key.Equals(displayName));
+        bool allowedUserName = !string.IsNullOrEmpty(displayName);
+        bool usernameExists = _users.Any(user => user.Key.Equals(displayName));
         
         //if username doesnt exists generate a new one based on it
-        if (!UsernameExists && AllowedUserName)
+        if (!usernameExists && allowedUserName)
         {
             var player = new Player
             {
