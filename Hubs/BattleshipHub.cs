@@ -11,10 +11,10 @@ namespace BattleshipBackend.Hubs;
 public class BattleshipHub : Hub
 {
 
-    static Dictionary<string, string> _users = new();
+    static Dictionary<string, Player> _users = new();
     static Dictionary<string, GameRoom> _games = new();
 
-    /// <summary>
+    /// <summary> 
     /// Checks against the user dictionary to see if the username is already in use.
     /// </summary>
     /// <param name="displayName"> The username the user wants to use. </param>
@@ -42,7 +42,11 @@ public class BattleshipHub : Hub
         //if username doesnt exists generate a new one based on it
         if (!UsernameExists() && AllowedUserName())
         {
-            _users.Add(Context.ConnectionId, displayName);
+            var player = new Player{
+                DisplayName = displayName,
+                ConnectionId = Context.ConnectionId
+            };;
+            _users.Add(Context.ConnectionId, player);;
             return true;
         }
 
@@ -67,11 +71,13 @@ public class BattleshipHub : Hub
     public bool CreateGameRoom(string roomName)
     {
         if (_games.Any(game => game.Key.Equals(roomName))) return false;
+        GameRoom? gameRoom = new GameRoom
+        {
+            GameID = roomName,
+            PlayerOne = _users[Context.ConnectionId],
+        };
         
-        _games.Add(roomName, new GameRoom());
-        _games[roomName].PlayerOne.ConnectionId = Context.ConnectionId;
-        _games[roomName].PlayerOne.DisplayName = _users.First(user => user.Key.Equals(Context.ConnectionId)).Value;
-        _games[roomName].GameID = roomName;
+        _games.Add(roomName, gameRoom);
 
         Debug.WriteLine(Context.ConnectionId + ": Created a room with the name '" + roomName + "'");
 
@@ -83,8 +89,8 @@ public class BattleshipHub : Hub
         
         if (_games.TryGetValue(roomName, out var gameRoom) && NotFull())
         {
-            gameRoom.PlayerTwo.ConnectionId = Context.ConnectionId;
-            gameRoom.PlayerTwo.DisplayName = _users.First(user => user.Key.Equals(Context.ConnectionId)).Value;
+            Player playerTwo = _users[Context.ConnectionId];
+            gameRoom.PlayerTwo = playerTwo;
             Debug.WriteLine(Context.ConnectionId + ": Joined the room with the name '" + roomName + "'");
             return true;
         }
@@ -93,9 +99,38 @@ public class BattleshipHub : Hub
 
         bool NotFull()
         {
-            return gameRoom.PlayerTwo.ConnectionId == null;
+            return gameRoom.PlayerTwo == null;
         }
     }
+    
+    public bool LeaveGameRoom()
+    {
+        var currentGameGameId = _users[Context.ConnectionId]?.CurrentGame?.GameID;
+        if (currentGameGameId != null && _games.TryGetValue(currentGameGameId, out var gameRoom))
+        {
+            //If host leaves, delete the gameroom
+            if(Context.ConnectionId.Equals(gameRoom.PlayerOne.ConnectionId))
+            {
+                if (gameRoom.GameID != null)
+                {
+                    _games.Remove(gameRoom.GameID);
+                    Debug.WriteLine(Context.ConnectionId + ": Left the room with the name '" + gameRoom.GameID + "'");
+                    Debug.WriteLine("gameroom: " + gameRoom.GameID + " closed");
+                }
+
+                return true;
+            }
+            //If player leaves, just remove them from the room
+            if (gameRoom.PlayerTwo != null && Context.ConnectionId.Equals(gameRoom.PlayerTwo?.ConnectionId))
+            {
+                gameRoom.PlayerTwo = null;
+                Debug.WriteLine(Context.ConnectionId + ": Left the room with the name '" + gameRoom.GameID + "'");
+                return true;
+            }
+        }
+        return false;
+    }
+    
 
     public GameRoom[] GetGameRooms()
     {
@@ -103,6 +138,20 @@ public class BattleshipHub : Hub
 
         return _games.Values.ToArray();
     }
+
+    
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        Debug.WriteLine(Context.ConnectionId + ": Disconnected");
+        
+        _users.Remove(Context.ConnectionId);
+
+
+        LeaveGameRoom();
+        return base.OnDisconnectedAsync(exception);
+    }
+    
 
     public override Task OnConnectedAsync()
     {
@@ -114,14 +163,14 @@ public class BattleshipHub : Hub
 
 public class GameRoom
 {
-    public string GameID { get; set; }
-    public Player PlayerOne { get; set; } = new Player();
-    public Player? PlayerTwo { get; set; } = new Player();
+    public string GameID { get; set; } = "";
+    public Player PlayerOne { get; set; }
+    public Player PlayerTwo { get; set; }
 }
 
 public class Player
 {
     public string ConnectionId { get; set; }
     public string DisplayName { get; set; }
-    public GameRoom? CurrentGame { get; set; }
+    public GameRoom CurrentGame { get; set; }
 }
