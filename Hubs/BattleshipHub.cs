@@ -105,18 +105,23 @@ public class BattleshipHub : Hub
     
     public bool LeaveGameRoom()
     {
-        if (_games.TryGetValue(Context.ConnectionId, out var gameRoom))
+        var currentGameGameId = _users[Context.ConnectionId]?.CurrentGame?.GameID;
+        if (currentGameGameId != null && _games.TryGetValue(currentGameGameId, out var gameRoom))
         {
             //If host leaves, delete the gameroom
             if(Context.ConnectionId.Equals(gameRoom.PlayerOne.ConnectionId))
             {
-                _games.Remove(gameRoom.GameID);
-                Debug.WriteLine(Context.ConnectionId + ": Left the room with the name '" + gameRoom.GameID + "'");
-                Debug.WriteLine("gameroom: " + gameRoom.GameID + " closed");
+                if (gameRoom.GameID != null)
+                {
+                    _games.Remove(gameRoom.GameID);
+                    Debug.WriteLine(Context.ConnectionId + ": Left the room with the name '" + gameRoom.GameID + "'");
+                    Debug.WriteLine("gameroom: " + gameRoom.GameID + " closed");
+                }
+
                 return true;
             }
             //If player leaves, just remove them from the room
-            if (Context.ConnectionId.Equals(gameRoom.PlayerTwo.ConnectionId))
+            if (gameRoom.PlayerTwo != null && Context.ConnectionId.Equals(gameRoom.PlayerTwo?.ConnectionId))
             {
                 gameRoom.PlayerTwo = null;
                 Debug.WriteLine(Context.ConnectionId + ": Left the room with the name '" + gameRoom.GameID + "'");
@@ -158,14 +163,14 @@ public class BattleshipHub : Hub
 
 public class GameRoom
 {
-    public string? GameID { get; set; }
-    public Player? PlayerOne { get; set; }
-    public Player? PlayerTwo { get; set; }
+    public string GameID { get; set; } = "";
+    public Player PlayerOne { get; set; }
+    public Player PlayerTwo { get; set; }
 }
 
 public class Player
 {
-    public string? ConnectionId { get; set; }
-    public string? DisplayName { get; set; }
-    public GameRoom? CurrentGame { get; set; }
+    public string ConnectionId { get; set; }
+    public string DisplayName { get; set; }
+    public GameRoom CurrentGame { get; set; }
 }
