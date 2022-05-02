@@ -56,11 +56,12 @@ public class BattleshipHub : Hub
     {
         var player = _users[Context.ConnectionId];
         var game = player.CurrentGame;
-        var opponent = game.PlayerOne.Equals(player) ? game.PlayerOne : game.PlayerTwo;
+        var opponent = game.PlayerOne.Equals(player) ? game.PlayerTwo : game.PlayerOne;
 
         var opponentConnectionId = opponent.ConnectionId;
-        var opponentClient = Clients.Client(opponentConnectionId);
-        // await client.SendAsync("ReceiveShot", coordinate.X, coordinate.Y);
+        var opponentClient = Clients.Client(opponentConnectionId); 
+        await opponentClient.SendAsync("ReceiveShot", coordinate.X, coordinate.Y);
+
 
         var isHit = opponent.GameGrid.RecieveHit(coordinate);
         if (isHit)
