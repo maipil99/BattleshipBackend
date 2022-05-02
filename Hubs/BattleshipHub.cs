@@ -158,6 +158,21 @@ public class BattleshipHub : Hub
         return _games.Values.ToArray();
     }
 
+    public string GetOpponent(string gameRoomName)
+    {
+        var rooms = GetGameRooms();
+        foreach (var room in rooms)
+        {
+            if (room.GameID.Equals(gameRoomName){
+                
+            }
+        }
+       
+
+
+        return String.Empty;
+    }
+
 
     public override Task OnDisconnectedAsync(Exception? exception)
     {
