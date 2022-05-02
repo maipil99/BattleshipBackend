@@ -164,13 +164,11 @@ public class BattleshipHub : Hub
         var rooms = GetGameRooms();
         foreach (var room in rooms)
         {
-            if (room.GameID.Equals(gameRoomName){
-                
+            if (room.GameID.Equals(gameRoomName)){
+                var player = _users[Context.ConnectionId];
+                return (room.PlayerOne.Equals(player) ? room.PlayerTwo : room.PlayerOne).DisplayName;
             }
         }
-       
-
-
         return String.Empty;
     }
 
