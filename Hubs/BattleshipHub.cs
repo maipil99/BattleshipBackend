@@ -159,17 +159,18 @@ public class BattleshipHub : Hub
         return _games.Values.ToArray();
     }
 
-    public string GetOpponent(string gameRoomName)
+    public string GetOpponent()
     {
-        var rooms = GetGameRooms();
-        foreach (var room in rooms)
+        try
         {
-            if (room.GameID.Equals(gameRoomName)){
-                var player = _users[Context.ConnectionId];
-                return (room.PlayerOne.Equals(player) ? room.PlayerTwo : room.PlayerOne).DisplayName;
-            }
+            var player = _users[Context.ConnectionId];
+            var room = player.CurrentGame;
+            return (room.PlayerOne.Equals(player) ? room.PlayerTwo : room.PlayerOne).DisplayName;
         }
-        return String.Empty;
+        catch (Exception e)
+        {
+            return String.Empty;
+        }
     }
 
 
