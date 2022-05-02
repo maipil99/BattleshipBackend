@@ -125,9 +125,9 @@ public class BattleshipHub : Hub
 
     public bool LeaveGameRoom()
     {
-        if (!_users.TryGetValue(Context.ConnectionId, out var currentGame)) return false;
+        if (!_users.TryGetValue(Context.ConnectionId, out var user)) return false;
 
-        var gameId = currentGame?.ConnectionId;
+        var gameId = user?.CurrentGame.GameID;
         if (gameId == null || !_games.TryGetValue(gameId, out var gameRoom)) return false;
         //If host leaves, delete the gameroom
         if (Context.ConnectionId.Equals(gameRoom.PlayerOne.ConnectionId))
