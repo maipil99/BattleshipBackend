@@ -111,6 +111,7 @@ public class BattleshipHub : Hub
             gameRoom.PlayerTwo = playerTwo;
             playerTwo.CurrentGame = gameRoom;
             Debug.WriteLine(Context.ConnectionId + ": Joined the room with the name '" + roomName + "'");
+            GameRoomFull(gameRoom);
             return true;
         }
 
@@ -121,6 +122,14 @@ public class BattleshipHub : Hub
         {
             return gameRoom.PlayerTwo == null;
         }
+    }
+
+    private void GameRoomFull(GameRoom gameRoom)
+    {
+        var playerOne = gameRoom.PlayerOne.ConnectionId;
+        var playerTwo = gameRoom.PlayerTwo.ConnectionId;
+        Clients.Client(playerOne).SendAsync("GameRoomFull");
+        Clients.Client(playerTwo).SendAsync("GameRoomFull");
     }
 
     public bool LeaveGameRoom()
