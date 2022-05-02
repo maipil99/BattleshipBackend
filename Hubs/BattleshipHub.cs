@@ -159,6 +159,20 @@ public class BattleshipHub : Hub
         return _games.Values.ToArray();
     }
 
+    public string GetOpponent()
+    {
+        try
+        {
+            var player = _users[Context.ConnectionId];
+            var room = player.CurrentGame;
+            return (room.PlayerOne.Equals(player) ? room.PlayerTwo : room.PlayerOne).DisplayName;
+        }
+        catch (Exception e)
+        {
+            return String.Empty;
+        }
+    }
+
 
     public override Task OnDisconnectedAsync(Exception? exception)
     {
