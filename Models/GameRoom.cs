@@ -1,4 +1,4 @@
-﻿namespace gamelogic;
+﻿namespace BattleshipBackend.Models;
 
 public class GameRoom
 {

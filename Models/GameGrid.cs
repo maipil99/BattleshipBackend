@@ -1,6 +1,6 @@
 ﻿using System.Numerics;
 
-namespace gamelogic;
+namespace BattleshipBackend.Models;
 
 public class GameGrid
 {
